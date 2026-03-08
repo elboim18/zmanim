@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>לוח זמני קודש</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        :root {
+            --gold: #d4af37;
+            --gold-light: #f1e5ac;
+        }
+
+        body {
+            margin: 0;
+            background-color: #1a120b; /* צבע גיבוי יוקרתי במקום שחור */
+            color: white;
+            font-family: system-ui, -apple-system, sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* רקע בית המקדש השני - מודל מסכת מידות */
+        .bg-temple {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url('https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Second_Temple_Model_in_the_Israel_Museum_01.jpg/1280px-Second_Temple_Model_in_the_Israel_Museum_01.jpg');
+            background-size: cover;
+            background-position: center;
+            z-index: -2;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(26, 18, 11, 0.85));
+            backdrop-filter: blur(2px);
+            z-index: -1;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 1.5rem;
+        }
+
+        .gold-text { color: var(--gold); }
+        
+        /* שעון חי גדול */
+        #live-clock {
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-temple"></div>
+    <div class="overlay"></div>
+
+    <div class="container mx-auto px-4 py-6 max-w-lg">
+        
+        <header class="text-center mb-6 card p-6 shadow-2xl">
+            <div id="live-clock" class="text-5xl font-black gold-text mb-2 tracking-tighter">00:00:00</div>
+            <div id="date-display" class="text-xl font-bold">טוען תאריך עברי...</div>
+            <div id="parasha-display" class="text-lg text-yellow-100/90 italic mt-1 font-light">טוען פרשה...</div>
+        </header>
+
+        <div class="mb-6 relative">
+            <select id="city-selector" class="w-full bg-black/60 border-2 border-yellow-700/50 rounded-2xl p-4 text-white text-center text-xl font-bold appearance-none outline-none focus:border-yellow-500 transition-all">
+                <option value="Jerusalem" selected>ירושלים</option>
+                <option value="Bnei Brak">בני ברק</option>
+                <option value="Tel Aviv">תל אביב</option>
+                <option value="Haifa">חיפה</option>
+                <option value="Beer Sheva">באר שבע</option>
+                <option value="Ashdod">אשדוד</option>
+                <option value="Netanya">נתניה</option>
+            </select>
+            <div class="absolute left-4 top-5 pointer-events-none text-yellow-600">▼</div>
+        </div>
+
+        <div id="zmanim-grid" class="grid grid-cols-2 gap-3 mb-6 text-center">
+            </div>
+
+        <div class="card p-6 text-center shadow-2xl border-t-4 border-t-yellow-600">
+            <h2 class="text-2xl font-bold gold-text mb-5 flex items-center justify-center gap-2">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L4.5 20.29L5.21 21L12 18L18.79 21L19.5 20.29L12 2Z"/></svg>
+                זמני שבת קודש
+            </h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="flex flex-col items-center">
+                    <div class="text-orange-400 mb-2">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 12V2M17 12V2M3 12h18v10H3V12z"/></svg>
+                    </div>
+                    <span class="text-xs opacity-70 uppercase font-bold tracking-widest">הדלקת נרות</span>
+                    <span id="candles-time" class="text-3xl font-black">--:--</span>
+                </div>
+                <div class="flex flex-col items-center border-r border-yellow-700/30">
+                    <div class="text-indigo-400 mb-2">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                    <span class="text-xs opacity-70 uppercase font-bold tracking-widest">צאת השבת</span>
+                    <span id="havdalah-time" class="text-3xl font-black">--:--</span>
+                </div>
+            </div>
+        </div>
+
+        <footer class="mt-8 text-center text-xs text-yellow-600/60 font-medium">
+            הנתונים מסופקים ע"י Hebcal API | עיצוב מודרני מותאם
+        </footer>
+    </div>
+
+    <script>
+        // פונקציית שעון חי
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('live-clock').innerText = now.toLocaleTimeString('he-IL', {hour12: false});
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        function formatTime(isoStr) {
+            if (!isoStr) return "--:--";
+            const d = new Date(isoStr);
+            return d.toLocaleTimeString('he-IL', {hour: '2-digit', minute:'2-digit', hour12: false});
+        }
+
+        async function updateData() {
+            const city = document.getElementById('city-selector').value;
+            const encodedCity = city.replace(' ', '+');
+            
+            try {
+                // 1. תאריך עברי ויום
+                const d = new Date();
+                const resDate = await fetch(`https://www.hebcal.com/converter?cfg=json&gy=${d.getFullYear()}&gm=${d.getMonth()+1}&gd=${d.getDate()}&g2h=1`);
+                const dataDate = await resDate.json();
+                const days = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+                document.getElementById('date-display').innerText = `יום ${days[d.getDay()]}, ${dataDate.hebrew}`;
+
+                // 2. שבת ופרשה
+                const resShabbat = await fetch(`https://www.hebcal.com/shabbat?cfg=json&city=${encodedCity}&lg=h`);
+                const dataShabbat = await resShabbat.json();
+                const parasha = dataShabbat.items.find(i => i.category === 'parashat');
+                document.getElementById('parasha-display').innerText = parasha ? parasha.hebrew : "";
+                document.getElementById('candles-time').innerText = formatTime(dataShabbat.items.find(i => i.category === 'candles')?.date);
+                document.getElementById('havdalah-time').innerText = formatTime(dataShabbat.items.find(i => i.category === 'havdalah')?.date);
+
+                // 3. זמנים הלכתיים
+                const resZ = await fetch(`https://www.hebcal.com/zmanim?cfg=json&city=${encodedCity}`);
+                const dataZ = await resZ.json();
+                
+                const zList = [
+                    {n: 'עלות השחר', k: 'alotHaShachar', color: 'text-purple-400', svg: '<path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>'},
+                    {n: 'הנץ החמה', k: 'sunrise', color: 'text-yellow-400', svg: '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>'},
+                    {n: 'סוף זמן שמע', k: 'sofZmanShma', color: 'text-blue-400', svg: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20M4 19.5V5A2.5 2.5 0 0 1 6.5 2.5H20"/>'},
+                    {n: 'חצות היום', k: 'chatzot', color: 'text-orange-400', svg: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'},
+                    {n: 'שקיעה', k: 'sunset', color: 'text-red-400', svg: '<path d="M17 18a5 5 0 0 0-10 0M2 22h20M12 2v4M4.2 7.76l2.83 2.83M19.8 7.76l-2.83 2.83"/>'},
+                    {n: 'צאת הכוכבים', k: 'tzeit', color: 'text-indigo-400', svg: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>'}
+                ];
+
+                const grid = document.getElementById('zmanim-grid');
+                grid.innerHTML = '';
+                zList.forEach(z => {
+                    let val = dataZ.times[z.k] || dataZ.times.tzeit850deg || dataZ.times.tzeit7083deg;
+                    grid.innerHTML += `
+                        <div class="card p-4 flex flex-col items-center">
+                            <svg class="mb-2 ${z.color}" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${z.svg}</svg>
+                            <div class="text-[11px] font-bold opacity-70 mb-1">${z.n}</div>
+                            <div class="text-2xl font-black">${formatTime(val)}</div>
+                        </div>
+                    `;
+                });
+            } catch (e) {
+                console.error("שגיאה:", e);
+                document.getElementById('date-display').innerText = "ודא חיבור לאינטרנט";
+            }
+        }
+
+        document.getElementById('city-selector').onchange = updateData;
+        updateData();
+    </script>
+</body>
+</html>
